@@ -52,7 +52,7 @@ Exp: M Pack:8, L Pack:4, M Pack:4, XL Pack:3, Special Pack:1, XL Pack:1
 """)
 custom_pack_sequence = st.sidebar.text_input(
     "Package Order and Quantity",
-    value="M Pack:3, L Pack:4, XL Pack:3, Special Pack:1, Legendary Pack:1"
+    value="M Pack:12, L Pack:10, XL Pack:16, Special Pack:4, Legendary Pack:3"
 )
 
 unique_first_n = st.sidebar.number_input(
@@ -96,6 +96,37 @@ def parse_custom_pack_sequence(seq_str):
                 seq.extend([name.strip()] * int(count.strip()))
     return seq
 
+  
+def is_set_completed(unique_card_type_sets, set_definition, card_types):
+    for ct in card_types:
+        if len(unique_card_type_sets[ct]) < set_definition[ct]:
+            return False
+    return True
+
+def unique_sets_distribution_with_steps(unique_card_type_sets, set_definitions, card_types):
+    available_uniques = {ct: set(s) for ct, s in unique_card_type_sets.items()}
+    sets_completed = []
+    sets_completion_steps = []
+    for s in set_definitions:
+        can_complete = True
+        used_this_set = {}
+        for ct in card_types:
+            need = s[ct]
+            have = len(available_uniques[ct])
+            if need > have:
+                can_complete = False
+            used_this_set[ct] = set(list(available_uniques[ct])[:need])
+        if can_complete:
+            for ct in card_types:
+                available_uniques[ct] -= used_this_set[ct]
+            sets_completed.append(True)
+            sets_completion_steps.append(None)  # Adım sonradan doldurulacak
+        else:
+            sets_completed.append(False)
+            sets_completion_steps.append(None)
+    return sets_completed, sets_completion_steps
+
+  
 def draw_from_pack(
     pack_type, drawn_this_pack, unique_give_count, unique_guarantee, gold_guarantee,
     unique_card_type_sets, pack_data = pack_data_dynamic, special_pack_memory=None, legendary_pack_memory=None,
@@ -110,7 +141,6 @@ def draw_from_pack(
 
     # --- Special Pack Yeni Kurallar ---
     if pack_type == "Special Pack":
-        # İlk 5 kart: dynamic probability'lerle
         for _ in range(5):
             chosen_type = np.random.choice(card_types, p=pack_data[pack_type]["prob"])
             available = not_drawn_this_pack(chosen_type)
@@ -118,7 +148,6 @@ def draw_from_pack(
                 selected = random.choice(available)
                 drawn_cards.append(selected)
                 drawn_this_pack.add(selected)
-        # 6. kart: özel probability
         special_probs_types = ["3 Star Card", "4 Star Card", "5 Star Card", "Gold Card"]
         special_probs = [0.26, 0.34, 0.32, 0.08]
         chosen_type = np.random.choice(special_probs_types, p=special_probs)
@@ -127,8 +156,6 @@ def draw_from_pack(
             selected = random.choice(available)
             drawn_cards.append(selected)
             drawn_this_pack.add(selected)
-
-        # unique ve set tamamlama swap işlemleri:
         unique_in_this_pack = [c for c in drawn_cards if c in all_unique_left]
         set_completed_by_one = []
         if set_definitions and card_types:
@@ -174,9 +201,7 @@ def draw_from_pack(
                         drawn_this_pack.add(possible_uniques[0])
         return drawn_cards
 
-    # --- Legendary Pack Yeni Kurallar ---
     if pack_type == "Legendary Pack":
-        # İlk 5 kart: dynamic probability
         for _ in range(5):
             chosen_type = np.random.choice(card_types, p=pack_data[pack_type]["prob"])
             available = not_drawn_this_pack(chosen_type)
@@ -184,7 +209,6 @@ def draw_from_pack(
                 selected = random.choice(available)
                 drawn_cards.append(selected)
                 drawn_this_pack.add(selected)
-        # 6. kart: özel probability
         special_probs_types = ["3 Star Card", "4 Star Card", "5 Star Card", "Gold Card"]
         special_probs = [0.26, 0.34, 0.32, 0.08]
         chosen_type = np.random.choice(special_probs_types, p=special_probs)
@@ -224,17 +248,35 @@ def draw_from_pack(
             drawn_this_pack.add(possible_uniques[0])
         return drawn_cards
 
-    # --- Diğer paketler için eski mantık ---
+    # --- Diğer paketler için: İlk unique_give_count için pack probability ile unique çek ---
     for _ in range(min(pack_data[pack_type]["count"], unique_give_count)):
-        possible_new = list(all_unique_left - set(drawn_this_pack))
-        if possible_new:
-            selected = random.choice(possible_new)
+        remain_unique = [uc for uc in unique_card_list if uc not in drawn_this_pack and uc not in set.union(*unique_card_type_sets.values())]
+        if not remain_unique:
+            break
+        remain_counts = [len([uc for uc in remain_unique if uc.startswith(ct)]) for ct in card_types]
+        total_remain = sum(remain_counts)
+        if total_remain == 0:
+            break
+        probs = []
+        for i, ct in enumerate(card_types):
+            if remain_counts[i] > 0:
+                probs.append(pack_data[pack_type]["prob"][i])
+            else:
+                probs.append(0)
+        prob_sum = sum(probs)
+        if prob_sum == 0:
+            break
+        probs = [p / prob_sum for p in probs]
+        chosen_type = np.random.choice(card_types, p=probs)
+        avail = [uc for uc in remain_unique if uc.startswith(chosen_type)]
+        if avail:
+            selected = random.choice(avail)
             drawn_cards.append(selected)
             drawn_this_pack.add(selected)
-            ct = next(ct for ct in card_types if selected.startswith(ct))
-            unique_card_type_sets[ct].add(selected)
+            unique_card_type_sets[chosen_type].add(selected)
         else:
-            break
+            continue
+
     if unique_guarantee and len(drawn_cards) < pack_data[pack_type]["count"]:
         possible_new = list(all_unique_left - set(drawn_this_pack))
         if possible_new:
@@ -267,28 +309,47 @@ def draw_from_pack(
             continue
     return drawn_cards
 
-def unique_sets_distribution_with_steps(unique_card_type_sets, set_definitions, card_types):
-    available_uniques = {ct: set(s) for ct, s in unique_card_type_sets.items()}
-    sets_completed = []
-    sets_completion_steps = []
-    for s in set_definitions:
-        can_complete = True
-        used_this_set = {}
+def greedy_set_completion(unique_history, set_definitions, card_types):
+    available_cards = {ct: set() for ct in card_types}
+    sets_done_rows = []
+    completed_sets = [False] * len(set_definitions)
+
+    for card in unique_history:
+        ct = next(ct for ct in card_types if card.startswith(ct))
+        available_cards[ct].add(card)
+        
+        sets_status = []
+        temp_available = {ct: available_cards[ct].copy() for ct in card_types}
+        for idx, sdef in enumerate(set_definitions):
+            if not completed_sets[idx]:
+                can_complete = all(len(temp_available[ct]) >= sdef[ct] for ct in card_types)
+                if can_complete:
+                    completed_sets[idx] = True
+                    for ct in card_types:
+                        used_cards = set(list(temp_available[ct])[:sdef[ct]])
+                        temp_available[ct] -= used_cards
+            sets_status.append(completed_sets[idx])
+        sets_done_rows.append(sets_status)
+
+    return sets_done_rows
+
+def sets_completed_greedy(unique_cards, set_definitions, card_types):
+    available = {ct: set(unique_cards[ct]) for ct in card_types}
+    set_done = []
+    for sdef in set_definitions:
+        ok = True
         for ct in card_types:
-            need = s[ct]
-            have = len(available_uniques[ct])
-            if need > have:
-                can_complete = False
-            used_this_set[ct] = set(list(available_uniques[ct])[:need])
-        if can_complete:
+            if len(available[ct]) < sdef[ct]:
+                ok = False
+                break
+        set_done.append(ok)
+        if ok:
             for ct in card_types:
-                available_uniques[ct] -= used_this_set[ct]
-            sets_completed.append(True)
-            sets_completion_steps.append(None)  # Adım sonradan doldurulacak
-        else:
-            sets_completed.append(False)
-            sets_completion_steps.append(None)
-    return sets_completed, sets_completion_steps
+                used = set(list(available[ct])[:sdef[ct]])
+                available[ct] -= used
+    return set_done
+
+
 
 def eksik_kart_hesapla_for_set(unique_card_type_sets, set_definitions, card_types, set_idx):
     # Tüm setleri unique kart havuzunu eksilterek sırayla simüle et
@@ -308,6 +369,98 @@ def eksik_kart_hesapla_for_set(unique_card_type_sets, set_definitions, card_type
         if can_complete:
             for ct in card_types:
                 available_uniques[ct] -= used[ct]
+
+def sets_completed_with_greedy_exclusion(unique_cards, set_definitions, card_types):
+    # unique_cards: dict, ör: {"1 Star Card": {...}, ...}
+    # Çıktı: [True/False ...] (setler sırasıyla tamamlandıysa True)
+    available = {ct: set(unique_cards[ct]) for ct in card_types}
+    set_done = []
+    for sdef in set_definitions:
+        # Bu sette yeterli kart var mı?
+        ok = all(len(available[ct]) >= sdef[ct] for ct in card_types)
+        set_done.append(ok)
+        if ok:
+            # Kullanılan kartları bu sette tüket (eksilt)
+            for ct in card_types:
+                used = set(list(available[ct])[:sdef[ct]])
+                available[ct] -= used
+    return set_done
+
+
+def greedy_set_status_per_step(unique_card_list, set_definitions, card_types, set_names):
+    sets_done_rows = []
+    for step in range(1, len(unique_card_list)+1):
+        pool = {ct: set() for ct in card_types}
+        for c in unique_card_list[:step]:
+            ct = next(ct for ct in card_types if c.startswith(ct))
+            pool[ct].add(c)
+        status = []
+        available = {ct: set(pool[ct]) for ct in card_types}
+        for sdef in set_definitions:
+            ok = all(len(available[ct]) >= sdef[ct] for ct in card_types)
+            status.append(ok)
+            if ok:
+                for ct in card_types:
+                    used = set(list(available[ct])[:sdef[ct]])
+                    available[ct] -= used
+        sets_done_rows.append(status)
+    return sets_done_rows
+
+def greedy_sets_first_completion_per_step(unique_history, set_definitions, card_types, set_names):
+    available = {ct: set() for ct in card_types}
+    completed_sets = [False] * len(set_definitions)
+    used_cards = {ct: set() for ct in card_types}
+    rows = []
+
+    for idx, card in enumerate(unique_history):
+        ct = next(ct for ct in card_types if card.startswith(ct))
+        if card not in available[ct]:
+            available[ct].add(card)
+
+        row_status = []
+        available_copy = {ct: available[ct] - used_cards[ct] for ct in card_types}
+        for s_idx, sdef in enumerate(set_definitions):
+            if not completed_sets[s_idx]:
+                if all(len(available_copy[ct]) >= sdef[ct] for ct in card_types):
+                    completed_sets[s_idx] = True
+                    for ct in card_types:
+                        used = set(list(available_copy[ct])[:sdef[ct]])
+                        used_cards[ct].update(used)
+                    row_status.append("✓")
+                else:
+                    row_status.append("")
+            else:
+                row_status.append("")
+        rows.append(row_status)
+    return rows
+
+def final_set_completion_tracker(unique_card_history, set_definitions, card_types, set_names):
+    used_cards = {ct: set() for ct in card_types}
+    available_cards = {ct: set() for ct in card_types}
+    completed_sets = [False] * len(set_names)
+    completed_set_index = [None] * len(set_names)
+    result_rows = []
+
+    for step_idx, card in enumerate(unique_card_history):
+        ct = next(ct for ct in card_types if card.startswith(ct))
+        available_cards[ct].add(card)
+
+        temp_avail = {ct: available_cards[ct] - used_cards[ct] for ct in card_types}
+        # Only complete at most one set per step
+        for i, sdef in enumerate(set_definitions):
+            if not completed_sets[i] and all(len(temp_avail[ct]) >= sdef[ct] for ct in card_types):
+                completed_sets[i] = True
+                completed_set_index[i] = step_idx + 1
+                for ct in card_types:
+                    to_use = set(list(temp_avail[ct])[:sdef[ct]])
+                    used_cards[ct].update(to_use)
+                break
+
+        result_rows.append([
+            "✓" if completed_sets[i] else "" for i in range(len(set_names))
+        ])
+
+    return result_rows, completed_set_index
 
 
 def simulate_once(
@@ -391,78 +544,112 @@ if st.sidebar.button("Start Simulation"):
     # Eğer kart sayısı fazla ise trimle
     pack_for_each_card = pack_for_each_card[:len(all_history)]
 
+      # Her kart için: kaçıncı açılan pack'ten geldiğini belirle
+    selection_pack_order_idx = []
+    current_order = 1
+    card_counter = 0
+    for pack in pack_sequence:
+        count = pack_data_dynamic[pack]["count"]
+        for _ in range(count):
+            if card_counter < len(all_history):
+                selection_pack_order_idx.append(current_order)
+                card_counter += 1
+        current_order += 1
+     
+        # --- All Selected Cards (Updated Set Completion) ---
+    set_completion_matrix, _ = final_set_completion_tracker(all_history, set_definitions, card_types, set_names)
+    
     card_rows = []
-    cumulative_unique_now = {ct: set() for ct in card_types}
-    completed_sets_by_step = set()
-    card_count_so_far = 0
-    set_step_list = []
-    completed_step_dict = {}
-
+    seen_uniques = set()
+    
     for idx, card in enumerate(all_history):
+        seen_uniques.add(card)  
         ct = next(ct for ct in card_types if card.startswith(ct))
-        cumulative_unique_now[ct].add(card)
-        card_count_so_far += 1
-        sets_completed, _ = unique_sets_distribution_with_steps(cumulative_unique_now, set_definitions, card_types)
-        completed_now = []
-        for sidx, completed in enumerate(sets_completed):
-            if completed and (sidx not in completed_sets_by_step):
-                completed_now.append(set_names[sidx])
-                completed_sets_by_step.add(sidx)
-                completed_step_dict[set_names[sidx]] = idx + 1
-        set_step_list.append(", ".join(completed_now) if completed_now else "")
+      
+        # Build persistent set completion flags
+        persistent_flags = []
+        for i in range(len(set_names)):
+            # If set completed by this or any prior step
+            if any(step[i] == "✓" for step in set_completion_matrix[:idx+1]):
+                persistent_flags.append("✓")
+            else:
+                persistent_flags.append("")
+        sets_status = {set_names[i]: persistent_flags[i] for i in range(len(set_names))}
+    
         card_rows.append({
-            "Selection Order": idx + 1,
-            "Pack": pack_for_each_card[idx] if idx < len(pack_for_each_card) else "-",
+            "Card Selection Order": idx + 1,
+            "Pack Selection Order": selection_pack_order_idx[idx],
+            "Pack": pack_for_each_card[idx],
             "Card": card,
             "Card Type": ct,
-            "Total Unique Card": sum(len(s) for s in cumulative_unique_now.values()),
+            "Total Unique Card": len(seen_uniques),
             "Total Card": idx + 1,
-            "Completed Sets": set_step_list[-1]
+            **sets_status
         })
-
+    
     st.subheader("All Selected Cards")
     st.dataframe(pd.DataFrame(card_rows))
 
 
-    # Cumulative tabloyu oluştururken unique/total'ları yan yana sırala ve set tamamlanma adımı ekle
-    cumu_cols = []
-    cumu_dict = {}
-    for ct in card_types:
-        cumu_cols += [f"{ct} Unique", f"{ct} Total"]
-        cumu_dict[f"{ct} Unique"] = cumulative_unique[ct]
-        cumu_dict[f"{ct} Total"] = cumulative_total[ct]
-    steps = list(range(1, len(all_history) + 1))
-    # Her adımda tamamlanan ilk setin adımını ekle
-    set_done_step_list = []
-    completed_step_tracker = set()
-    cumulative_unique_now2 = {ct: set() for ct in card_types}
-    for idx, card in enumerate(all_history):
+# --- Cumulative Card Selection Table (Unique Cards Only, Updated Set Completion) --- (Unique Cards Only, Updated Set Completion) ---
+    seen_uniques = set()
+    unique_only_history = []
+    for c in all_history:
+        if c not in seen_uniques:
+            seen_uniques.add(c)
+            unique_only_history.append(c)
+    
+    cumu_matrix, _ = final_set_completion_tracker(unique_only_history, set_definitions, card_types, set_names)
+    
+    cumu_rows = []
+    cumulative_unique_now = {ct: set() for ct in card_types}
+    
+    for idx, card in enumerate(unique_only_history):
         ct = next(ct for ct in card_types if card.startswith(ct))
-        cumulative_unique_now2[ct].add(card)
-        sets_completed, _ = unique_sets_distribution_with_steps(cumulative_unique_now2, set_definitions, card_types)
-        this_step_done = ""
-        for sidx, completed in enumerate(sets_completed):
-            if completed and (sidx not in completed_step_tracker):
-                this_step_done = set_names[sidx]
-                completed_step_tracker.add(sidx)
-                break
-        set_done_step_list.append(this_step_done if this_step_done else "")
-    df_cum = pd.DataFrame({**cumu_dict, "Step": steps, "Completed Sets": set_done_step_list})
-    # Sütun sıralama: unique-total yan yana ve en sonda step ve set tamamlandı
-    ordered_cols = []
-    for ct in card_types:
-        ordered_cols += [f"{ct} Unique", f"{ct} Total"]
-    ordered_cols += ["Step", "Completed Sets"]
-    st.subheader("Cumulative Card Selection Table (Unique & Total)")
-    st.dataframe(df_cum[ordered_cols])
+        cumulative_unique_now[ct].add(card)
+        # Persistent flags for unique cumulative
+        persistent_flags = []
+        for i in range(len(set_names)):
+            if any(step[i] == "✓" for step in cumu_matrix[:idx+1]):
+                persistent_flags.append("✓")
+            else:
+                persistent_flags.append("")
+        cumu_rows.append({
+            "Card Selection Order": idx + 1,
+            "Pack Selection Order": selection_pack_order_idx[all_history.index(card)],
+            "Pack": pack_for_each_card[all_history.index(card)],
+            **{f"{ct} Unique": len(cumulative_unique_now[ct]) for ct in card_types},
+            **{set_names[i]: persistent_flags[i] for i in range(len(set_names))}
+        })
+    
+    st.subheader("Cumulative Card Selection Table (Unique Cards Only)")
+    st.dataframe(pd.DataFrame(cumu_rows))
 
-    # Tamamlanan setler ve adımda tamamlanma tablosu
-    set_finish_df = pd.DataFrame([
-        {"Set": name, "Completed Step": completed_step_dict.get(name, None) if name in completed_step_dict else "-"}
-        for name in set_names
-    ])
+
+
+    completed_info = []
+    for set_idx, set_name in enumerate(set_names):
+        completed_step = None
+        completed_pack_order = None
+        # matrisin satırlarına bak
+        for i, flags in enumerate(set_completion_matrix):
+            if flags[set_idx] == "✓":
+                completed_step = i + 1
+                completed_pack_order = selection_pack_order_idx[i]
+                break
+        completed_info.append({
+            "Set": set_name,
+            "Completed Selection Order": completed_step if completed_step is not None else "-",
+            "Completed Pack Order": completed_pack_order if completed_pack_order is not None else "-"
+        })
+    
+    set_finish_df = pd.DataFrame(completed_info)
     st.subheader("Completed Sets and Completed Steps")
     st.dataframe(set_finish_df)
+
+
+
+
 
     st.subheader("How many of each type of card did you get?")
     summary_table = {}
@@ -476,7 +663,9 @@ if st.sidebar.button("Start Simulation"):
 
 
 
+
 if st.sidebar.button("500 Simulation!"):
+  
     all_total, all_unique = [], []
     sets_complete_counts = []
     set_by_set_counts = {name: [] for name in set_names}
