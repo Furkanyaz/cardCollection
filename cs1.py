@@ -77,6 +77,8 @@ def get_pack_probs_input(pack, default_probs):
         st.sidebar.error(f"Sum for {pack} = {prob_sum:.3f} (Must be 1.00!)")
     return probs
 
+
+
 pack_data_dynamic = {}
 for pack in ["M Pack", "L Pack", "XL Pack"]:
     pack_data_dynamic[pack] = {
@@ -86,6 +88,37 @@ for pack in ["M Pack", "L Pack", "XL Pack"]:
 for pack in ["Special Pack", "Legendary Pack"]:
     pack_data_dynamic[pack] = dict(pack_data[pack])
     pack_data_dynamic[pack]["prob"] = get_pack_probs_input(pack, pack_data[pack]["prob"])
+
+
+# --- Sidebar: Special/Lengendary Pack 6th‐card probs ---
+st.sidebar.header("Special Pack 6th‐Card Probabilities")
+special_probs_types = ["3 Star Card", "4 Star Card", "5 Star Card", "Gold Card"]
+special_pack_probs = []
+for i, ct in enumerate(special_probs_types):
+    p = st.sidebar.number_input(
+        f"Special Pack → {ct}",
+        min_value=0.0, max_value=1.0,
+        value=[0.26,0.34,0.32,0.08][i],
+        step=0.01, format="%.2f",
+        key=f"special6_{i}"
+    )
+    special_pack_probs.append(p)
+if abs(sum(special_pack_probs) - 1.0) > 1e-4:
+    st.sidebar.error(f"Special Pack 6th‐card probs must sum to 1.00 (now {sum(special_pack_probs):.2f})")
+
+st.sidebar.header("Legendary Pack 6th‐Card Probabilities")
+legendary_pack_probs = []
+for i, ct in enumerate(special_probs_types):
+    p = st.sidebar.number_input(
+        f"Legendary Pack → {ct}",
+        min_value=0.0, max_value=1.0,
+        value=[0.26,0.34,0.32,0.08][i],
+        step=0.01, format="%.2f",
+        key=f"legendary6_{i}"
+    )
+    legendary_pack_probs.append(p)
+if abs(sum(legendary_pack_probs) - 1.0) > 1e-4:
+    st.sidebar.error(f"Legendary Pack 6th‐card probs must sum to 1.00 (now {sum(legendary_pack_probs):.2f})")
 
 def parse_custom_pack_sequence(seq_str):
     seq = []
@@ -149,7 +182,7 @@ def draw_from_pack(
                 drawn_cards.append(selected)
                 drawn_this_pack.add(selected)
         special_probs_types = ["3 Star Card", "4 Star Card", "5 Star Card", "Gold Card"]
-        special_probs = [0.26, 0.34, 0.32, 0.08]
+        special_probs = special_pack_probs
         chosen_type = np.random.choice(special_probs_types, p=special_probs)
         available = not_drawn_this_pack(chosen_type)
         if available:
@@ -210,7 +243,7 @@ def draw_from_pack(
                 drawn_cards.append(selected)
                 drawn_this_pack.add(selected)
         special_probs_types = ["3 Star Card", "4 Star Card", "5 Star Card", "Gold Card"]
-        special_probs = [0.26, 0.34, 0.32, 0.08]
+        special_probs = legendary_pack_probs
         chosen_type = np.random.choice(special_probs_types, p=special_probs)
         available = not_drawn_this_pack(chosen_type)
         if available:
