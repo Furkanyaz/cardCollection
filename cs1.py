@@ -11,12 +11,12 @@ card_types = [
     "1 Star Card", "2 Star Card", "3 Star Card", "4 Star Card", "5 Star Card", "Gold Card"
 ]
 card_counts = {
-    "1 Star Card": 17,
-    "2 Star Card": 16,
+    "1 Star Card": 18,
+    "2 Star Card": 17,
     "3 Star Card": 14,
     "4 Star Card": 13,
-    "5 Star Card": 12,
-    "Gold Card": 9
+    "5 Star Card": 13,
+    "Gold Card": 6
 }
 unique_card_list = []
 for ct in card_types:
@@ -24,15 +24,15 @@ for ct in card_types:
 
 # Default set definitions
 default_set_defs = [
-    {"1 Star Card": 5, "2 Star Card": 4, "3 Star Card": 0, "4 Star Card": 0, "5 Star Card": 0, "Gold Card": 0},  # Set 1
-    {"1 Star Card": 4, "2 Star Card": 3, "3 Star Card": 2, "4 Star Card": 0, "5 Star Card": 0, "Gold Card": 0},  # Set 2
-    {"1 Star Card": 3, "2 Star Card": 2, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 0, "Gold Card": 0},  # Set 3
-    {"1 Star Card": 2, "2 Star Card": 2, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 1, "Gold Card": 0},  # Set 4
-    {"1 Star Card": 1, "2 Star Card": 2, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 1, "Gold Card": 1},  # Set 5
-    {"1 Star Card": 1, "2 Star Card": 1, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 2, "Gold Card": 1},  # Set 6
-    {"1 Star Card": 1, "2 Star Card": 1, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 2, "Gold Card": 1},  # Set 7
-    {"1 Star Card": 0, "2 Star Card": 1, "3 Star Card": 1, "4 Star Card": 2, "5 Star Card": 2, "Gold Card": 3},  # Set 8
-    {"1 Star Card": 0, "2 Star Card": 0, "3 Star Card": 1, "4 Star Card": 1, "5 Star Card": 4, "Gold Card": 3},  # Set 9
+    {"1 Star Card": 7, "2 Star Card": 1, "3 Star Card": 1, "4 Star Card": 0, "5 Star Card": 0, "Gold Card": 0},  # Set 1
+    {"1 Star Card": 5, "2 Star Card": 3, "3 Star Card": 1, "4 Star Card": 0, "5 Star Card": 0, "Gold Card": 0},  # Set 2
+    {"1 Star Card": 3, "2 Star Card": 4, "3 Star Card": 1, "4 Star Card": 1, "5 Star Card": 0, "Gold Card": 0},  # Set 3
+    {"1 Star Card": 2, "2 Star Card": 4, "3 Star Card": 2, "4 Star Card": 1, "5 Star Card": 0, "Gold Card": 0},  # Set 4
+    {"1 Star Card": 1, "2 Star Card": 3, "3 Star Card": 2, "4 Star Card": 1, "5 Star Card": 2, "Gold Card": 0},  # Set 5
+    {"1 Star Card": 0, "2 Star Card": 2, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 3, "Gold Card": 0},  # Set 6
+    {"1 Star Card": 0, "2 Star Card": 0, "3 Star Card": 3, "4 Star Card": 2, "5 Star Card": 3, "Gold Card": 1},  # Set 7
+    {"1 Star Card": 0, "2 Star Card": 0, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 3, "Gold Card": 2},  # Set 8
+    {"1 Star Card": 0, "2 Star Card": 0, "3 Star Card": 0, "4 Star Card": 4, "5 Star Card": 2, "Gold Card": 3},  # Set 9
 ]
 # Define set names based on defaults
 set_names = [f"Set {i+1}" for i in range(len(default_set_defs))]
