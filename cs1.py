@@ -10,29 +10,44 @@ import pandas as pd
 card_types = [
     "1 Star Card", "2 Star Card", "3 Star Card", "4 Star Card", "5 Star Card", "Gold Card"
 ]
-card_counts = {
-    "1 Star Card": 18,
-    "2 Star Card": 17,
-    "3 Star Card": 14,
-    "4 Star Card": 13,
-    "5 Star Card": 13,
-    "Gold Card": 6
-}
+
+# --- Sidebar: Unique Card Counts Configuration ---
+with st.sidebar.expander("Unique Card Counts", expanded=False):
+    default_card_counts = {
+        "1 Star Card": 17,
+        "2 Star Card": 16,
+        "3 Star Card": 14,
+        "4 Star Card": 13,
+        "5 Star Card": 12,
+        "Gold Card": 9
+    }
+    card_counts = {}
+    for ct in card_types:
+        card_counts[ct] = st.number_input(
+            f"{ct} Unique Count",
+            min_value=0,
+            max_value=100,
+            value=default_card_counts[ct],
+            step=1,
+            key=f"count_{ct}"
+        )
+# --- Build the full list of unique cards based on these counts ---
 unique_card_list = []
 for ct in card_types:
     unique_card_list += [f"{ct} {i}" for i in range(card_counts[ct])]
 
+
 # Default set definitions
 default_set_defs = [
-    {"1 Star Card": 7, "2 Star Card": 1, "3 Star Card": 1, "4 Star Card": 0, "5 Star Card": 0, "Gold Card": 0},  # Set 1
-    {"1 Star Card": 5, "2 Star Card": 3, "3 Star Card": 1, "4 Star Card": 0, "5 Star Card": 0, "Gold Card": 0},  # Set 2
-    {"1 Star Card": 3, "2 Star Card": 4, "3 Star Card": 1, "4 Star Card": 1, "5 Star Card": 0, "Gold Card": 0},  # Set 3
-    {"1 Star Card": 2, "2 Star Card": 4, "3 Star Card": 2, "4 Star Card": 1, "5 Star Card": 0, "Gold Card": 0},  # Set 4
-    {"1 Star Card": 1, "2 Star Card": 3, "3 Star Card": 2, "4 Star Card": 1, "5 Star Card": 2, "Gold Card": 0},  # Set 5
-    {"1 Star Card": 0, "2 Star Card": 2, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 3, "Gold Card": 0},  # Set 6
-    {"1 Star Card": 0, "2 Star Card": 0, "3 Star Card": 3, "4 Star Card": 2, "5 Star Card": 3, "Gold Card": 1},  # Set 7
-    {"1 Star Card": 0, "2 Star Card": 0, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 3, "Gold Card": 2},  # Set 8
-    {"1 Star Card": 0, "2 Star Card": 0, "3 Star Card": 0, "4 Star Card": 4, "5 Star Card": 2, "Gold Card": 3},  # Set 9
+    {"1 Star Card": 5, "2 Star Card": 4, "3 Star Card": 0, "4 Star Card": 0, "5 Star Card": 0, "Gold Card": 0},  # Set 1
+    {"1 Star Card": 4, "2 Star Card": 3, "3 Star Card": 2, "4 Star Card": 0, "5 Star Card": 0, "Gold Card": 0},  # Set 2
+    {"1 Star Card": 3, "2 Star Card": 2, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 0, "Gold Card": 0},  # Set 3
+    {"1 Star Card": 2, "2 Star Card": 2, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 1, "Gold Card": 0},  # Set 4
+    {"1 Star Card": 1, "2 Star Card": 2, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 1, "Gold Card": 1},  # Set 5
+    {"1 Star Card": 1, "2 Star Card": 1, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 2, "Gold Card": 1},  # Set 6
+    {"1 Star Card": 1, "2 Star Card": 1, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 2, "Gold Card": 1},  # Set 7
+    {"1 Star Card": 0, "2 Star Card": 1, "3 Star Card": 1, "4 Star Card": 2, "5 Star Card": 2, "Gold Card": 3},  # Set 8
+    {"1 Star Card": 0, "2 Star Card": 0, "3 Star Card": 1, "4 Star Card": 1, "5 Star Card": 4, "Gold Card": 3},  # Set 9
 ]
 # Define set names based on defaults
 set_names = [f"Set {i+1}" for i in range(len(default_set_defs))]
@@ -58,6 +73,14 @@ with st.sidebar.expander("Tüm Set İhtiyaçları", expanded=False):
             dynamic_set_defs.append(req)
 # Use dynamic definitions below
 set_definitions = dynamic_set_defs
+
+# --- Validation: Total unique cards vs. total required by sets ---
+total_unique = sum(card_counts.values())
+total_required = sum(sum(sdef[ct] for ct in card_types) for sdef in dynamic_set_defs)
+if total_unique != total_required:
+    st.sidebar.error(
+        f"Total unique cards = {total_unique}, but total required by sets = {total_required}. They should match!"
+    )
 set_names = [f"Set {i+1}" for i in range(9)]
 
 # Default probabilities
