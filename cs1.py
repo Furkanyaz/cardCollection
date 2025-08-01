@@ -22,7 +22,8 @@ unique_card_list = []
 for ct in card_types:
     unique_card_list += [f"{ct} {i}" for i in range(card_counts[ct])]
 
-set_definitions = [
+# Default set definitions
+default_set_defs = [
     {"1 Star Card": 5, "2 Star Card": 4, "3 Star Card": 0, "4 Star Card": 0, "5 Star Card": 0, "Gold Card": 0},  # Set 1
     {"1 Star Card": 4, "2 Star Card": 3, "3 Star Card": 2, "4 Star Card": 0, "5 Star Card": 0, "Gold Card": 0},  # Set 2
     {"1 Star Card": 3, "2 Star Card": 2, "3 Star Card": 2, "4 Star Card": 2, "5 Star Card": 0, "Gold Card": 0},  # Set 3
@@ -33,6 +34,30 @@ set_definitions = [
     {"1 Star Card": 0, "2 Star Card": 1, "3 Star Card": 1, "4 Star Card": 2, "5 Star Card": 2, "Gold Card": 3},  # Set 8
     {"1 Star Card": 0, "2 Star Card": 0, "3 Star Card": 1, "4 Star Card": 1, "5 Star Card": 4, "Gold Card": 3},  # Set 9
 ]
+# Define set names based on defaults
+set_names = [f"Set {i+1}" for i in range(len(default_set_defs))]
+
+# --- Sidebar: Dynamic Set Definitions ---
+st.sidebar.header("Set Requirements (Unique Cards per Set)")
+with st.sidebar.expander("Tüm Set İhtiyaçları", expanded=False):
+    dynamic_set_defs = []
+    for idx, set_name in enumerate(set_names):
+        with st.sidebar.expander(set_name, expanded=False):
+            req = {}
+            for ct in card_types:
+                default_val = default_set_defs[idx][ct]
+                max_val = card_counts[ct]
+                req[ct] = st.number_input(
+                    f"{ct}",
+                    min_value=0,
+                    max_value=max_val,
+                    value=default_val,
+                    step=1,
+                    key=f"set_{idx}_{ct}"
+                )
+            dynamic_set_defs.append(req)
+# Use dynamic definitions below
+set_definitions = dynamic_set_defs
 set_names = [f"Set {i+1}" for i in range(9)]
 
 # Default probabilities
