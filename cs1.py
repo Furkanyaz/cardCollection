@@ -566,7 +566,7 @@ if st.sidebar.button("Start Simulation"):
                 bg = "#e6ffe6" if is_filled else "#ffe6e6"
                 label = filled[i].split(" ")[-1] if is_filled else ""
                 card_name = filled[i] if is_filled else f"({ct} Eksik)"
-                star_display = 'G' if ct == 'Gold Card' else '★' * int(ct.split()[0])
+                star_display = 'GOLD' if ct == 'Gold Card' else '★' * int(ct.split()[0])
                 html += (
                     f"<div style='display:inline-block;width:80px;height:110px;"
                     f"background:{bg};border:2px solid #888;border-radius:6px;"
