@@ -53,7 +53,7 @@ set_names = [f"Set {i+1}" for i in range(len(default_set_defs))]
 
 # --- Sidebar: Dynamic Set Definitions ---
 st.sidebar.header("Set Requirements (Unique Cards per Set)")
-with st.sidebar.expander("Tüm Set İhtiyaçları", expanded=False):
+with st.sidebar.expander("All Set Requirements", expanded=False):
     dynamic_set_defs = []
     for idx, set_name in enumerate(set_names):
         with st.sidebar.expander(set_name, expanded=False):
@@ -481,7 +481,7 @@ if st.sidebar.button("Start Simulation"):
     summary_table["Total Card Number"] = {"Unique": len(set(all_history)), "Total": len(all_history)}
     st.write(pd.DataFrame(summary_table).T)
 
-    st.subheader("Set Slot Görünümü (Anlık Yerleştirme)")
+    st.subheader("Set Slots")
     for idx, set_name in enumerate(set_names):
         st.write(f"**{set_name}**")
         assigned = cards_used_for_set_viz[set_name]
