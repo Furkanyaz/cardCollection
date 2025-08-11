@@ -185,19 +185,19 @@ def draw_from_pack(
     all_unique_left = set(unique_card_list) - owned_uniques
 
     def draw_one_card(probs_list, types_list):
-        # This helper function draws one card, respecting the unique Gold Card rule.
-        # It will re-roll internally if it picks a type that is exhausted.
         mutable_probs = list(probs_list)
         mutable_types = list(types_list)
 
         while True:
+            if not mutable_types or sum(mutable_probs) <= 0:
+                return None
+
             # GOLD CARD RULE: Check if we can draw a unique gold card
             if "Gold Card" in mutable_types:
                 gold_index = mutable_types.index("Gold Card")
                 available_unique_golds = [c for c in unique_card_list if c.startswith("Gold Card") and c not in owned_uniques and c not in drawn_this_pack]
                 
                 if not available_unique_golds:
-                    # No unique golds left. Remove it from this draw's possibilities.
                     if mutable_probs[gold_index] > 0:
                         mutable_probs.pop(gold_index)
                         mutable_types.pop(gold_index)
@@ -205,30 +205,30 @@ def draw_from_pack(
                         if prob_sum > 0:
                             mutable_probs = [p / prob_sum for p in mutable_probs]
                         else:
-                            return None # No cards left to draw
+                            continue # Re-loop to check exit condition
             
-            if not mutable_types or sum(mutable_probs) == 0:
+            if not mutable_types or sum(mutable_probs) <= 0:
                 return None
 
             chosen_type = np.random.choice(mutable_types, p=mutable_probs)
             
             if chosen_type == "Gold Card":
-                # We already confirmed available_unique_golds is not empty
-                return random.choice(available_unique_golds)
+                available_unique_golds = [c for c in unique_card_list if c.startswith("Gold Card") and c not in owned_uniques and c not in drawn_this_pack]
+                if available_unique_golds:
+                    return random.choice(available_unique_golds)
             else:
                 pool = [c for c in unique_card_list if c.startswith(chosen_type) and c not in drawn_this_pack]
                 if pool:
                     return random.choice(pool)
-                else:
-                    # This type is exhausted. Remove it and re-roll.
-                    type_index = mutable_types.index(chosen_type)
-                    mutable_probs.pop(type_index)
-                    mutable_types.pop(type_index)
-                    prob_sum = sum(mutable_probs)
-                    if prob_sum > 0:
-                        mutable_probs = [p / prob_sum for p in mutable_probs]
-                    else:
-                        return None # No cards left
+            
+            # If we reach here, it means the chosen type was exhausted. Remove and re-roll.
+            type_index = mutable_types.index(chosen_type)
+            mutable_probs.pop(type_index)
+            mutable_types.pop(type_index)
+            prob_sum = sum(mutable_probs)
+            if prob_sum > 0:
+                mutable_probs = [p / prob_sum for p in mutable_probs]
+
 
     # --- Special/Legendary Pack Logic ---
     if pack_type in ["Special Pack", "Legendary Pack"]:
@@ -243,9 +243,6 @@ def draw_from_pack(
         if card:
             drawn_cards.append(card)
             drawn_this_pack.add(card)
-        
-        # Pity/swap logic is preserved from the original user code
-        # This logic operates on `drawn_cards` after they are selected.
         return drawn_cards
 
     # --- Regular Pack Logic (M, L, XL) ---
@@ -254,7 +251,7 @@ def draw_from_pack(
         if not remain_unique: break
         
         remain_counts = {ct: len([uc for uc in remain_unique if uc.startswith(ct)]) for ct in card_types}
-        probs = [pack_data[pack_type]["prob"][i] if remain_counts[ct] > 0 else 0 for i, ct in enumerate(card_types)]
+        probs = [pack_data[pack_type]["prob"][i] if remain_counts.get(ct, 0) > 0 else 0 for i, ct in enumerate(card_types)]
         
         prob_sum = sum(probs)
         if prob_sum == 0: break
@@ -329,6 +326,8 @@ def simulate_once(
     
     special_pack_memory = []
     legendary_pack_memory = []
+    
+    current_unique_give_count = unique_first_n
 
     for pack_type in pack_sequence:
         drawn_this_pack = set()
@@ -337,30 +336,33 @@ def simulate_once(
         is_special = (pack_type == "Special Pack")
         is_legendary = (pack_type == "Legendary Pack")
 
+        # Call draw_from_pack with the CORRECT unique_give_count
         drawn_cards = draw_from_pack(
             pack_type, drawn_this_pack,
-            unique_give_count=len(all_history), # This is not quite right, but we pass the state
+            unique_give_count=current_unique_give_count,
             unique_guarantee=unique_guarantee,
             gold_guarantee=gold_guarantee,
-            unique_card_type_sets=unique_card_type_sets, # Pass the current state of owned uniques
+            unique_card_type_sets=unique_card_type_sets,
             pack_data=pack_data,
             special_pack_memory=special_pack_memory if is_special else None,
             legendary_pack_memory=legendary_pack_memory if is_legendary else None,
             set_definitions=set_definitions, card_types=card_types
         )
 
-        if is_special:
-            any_unique = any([c not in all_history for c in drawn_cards])
-            special_pack_memory.append(any_unique)
-        if is_legendary:
-            any_unique = any([c not in all_history for c in drawn_cards])
-            legendary_pack_memory.append(any_unique)
+        # Correctly decrement unique_give_count
+        newly_drawn_uniques = 0
+        for card in drawn_cards:
+            ct = next(ct for ct in card_types if card.startswith(ct))
+            if card not in unique_card_type_sets[ct]:
+                newly_drawn_uniques +=1
 
+        current_unique_give_count = max(0, current_unique_give_count - newly_drawn_uniques)
+
+        # Update history and owned sets
         for card in drawn_cards:
             ct = next(ct for ct in card_types if card.startswith(ct))
             all_history.append(card)
-            if card not in unique_card_type_sets[ct]:
-                 unique_card_type_sets[ct].add(card)
+            unique_card_type_sets[ct].add(card)
     
     return all_history, unique_card_type_sets
       
@@ -550,7 +552,6 @@ if st.sidebar.button("500 Simulation!"):
                     per_set_missing_cards[name].append(missing_count)
         else:
             all_sets_completed_counts.append(0)
-            # If no unique cards were drawn, all sets are incomplete
             for idx, name in enumerate(set_names):
                 sdef = set_definitions[idx]
                 missing_count = sum(sdef.values())
