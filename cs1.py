@@ -11,6 +11,16 @@ card_types = [
     "1 Star Card", "2 Star Card", "3 Star Card", "4 Star Card", "5 Star Card", "Gold Card"
 ]
 
+# --- Star value mapping for the new feature ---
+star_values = {
+    "1 Star Card": 1,
+    "2 Star Card": 2,
+    "3 Star Card": 3,
+    "4 Star Card": 4,
+    "5 Star Card": 5,
+    "Gold Card": 5
+}
+
 # --- Sidebar: Unique Card Counts Configuration ---
 with st.sidebar.expander("Unique Card Counts", expanded=False):
     default_card_counts = {
@@ -192,43 +202,21 @@ def draw_from_pack(
             if not mutable_types or sum(mutable_probs) <= 0:
                 return None
 
-            # GOLD CARD RULE: Check if we can draw a unique gold card
-            if "Gold Card" in mutable_types:
-                gold_index = mutable_types.index("Gold Card")
-                available_unique_golds = [c for c in unique_card_list if c.startswith("Gold Card") and c not in owned_uniques and c not in drawn_this_pack]
-                
-                if not available_unique_golds:
-                    if mutable_probs[gold_index] > 0:
-                        mutable_probs.pop(gold_index)
-                        mutable_types.pop(gold_index)
-                        prob_sum = sum(mutable_probs)
-                        if prob_sum > 0:
-                            mutable_probs = [p / prob_sum for p in mutable_probs]
-                        else:
-                            continue # Re-loop to check exit condition
-            
-            if not mutable_types or sum(mutable_probs) <= 0:
-                return None
-
             chosen_type = np.random.choice(mutable_types, p=mutable_probs)
             
-            if chosen_type == "Gold Card":
-                available_unique_golds = [c for c in unique_card_list if c.startswith("Gold Card") and c not in owned_uniques and c not in drawn_this_pack]
-                if available_unique_golds:
-                    return random.choice(available_unique_golds)
-            else:
-                pool = [c for c in unique_card_list if c.startswith(chosen_type) and c not in drawn_this_pack]
-                if pool:
-                    return random.choice(pool)
+            # Draw from the general pool, allowing duplicates.
+            # Don't draw a card that's already in this specific pack.
+            pool = [c for c in unique_card_list if c.startswith(chosen_type) and c not in drawn_this_pack]
+            if pool:
+                return random.choice(pool)
             
-            # If we reach here, it means the chosen type was exhausted. Remove and re-roll.
+            # If pool is empty for that type, remove it and re-roll.
             type_index = mutable_types.index(chosen_type)
             mutable_probs.pop(type_index)
             mutable_types.pop(type_index)
             prob_sum = sum(mutable_probs)
             if prob_sum > 0:
                 mutable_probs = [p / prob_sum for p in mutable_probs]
-
 
     # --- Special/Legendary Pack Logic ---
     if pack_type in ["Special Pack", "Legendary Pack"]:
@@ -336,7 +324,6 @@ def simulate_once(
         is_special = (pack_type == "Special Pack")
         is_legendary = (pack_type == "Legendary Pack")
 
-        # Call draw_from_pack with the CORRECT unique_give_count
         drawn_cards = draw_from_pack(
             pack_type, drawn_this_pack,
             unique_give_count=current_unique_give_count,
@@ -349,7 +336,6 @@ def simulate_once(
             set_definitions=set_definitions, card_types=card_types
         )
 
-        # Correctly decrement unique_give_count
         newly_drawn_uniques = 0
         for card in drawn_cards:
             ct = next(ct for ct in card_types if card.startswith(ct))
@@ -358,7 +344,6 @@ def simulate_once(
 
         current_unique_give_count = max(0, current_unique_give_count - newly_drawn_uniques)
 
-        # Update history and owned sets
         for card in drawn_cards:
             ct = next(ct for ct in card_types if card.startswith(ct))
             all_history.append(card)
@@ -473,12 +458,21 @@ if st.sidebar.button("Start Simulation"):
 
     st.subheader("How many of each type of card did you get?")
     summary_table = {}
+    total_stars = 0
     for ct in card_types:
+        total_cards_of_type = len([c for c in all_history if c.startswith(ct)])
+        stars_for_type = total_cards_of_type * star_values[ct]
+        total_stars += stars_for_type
         summary_table[ct] = {
             "Unique": len(unique_card_type_sets[ct]),
-            "Total": len([c for c in all_history if c.startswith(ct)])
+            "Total": total_cards_of_type,
+            "Stars": stars_for_type
         }
-    summary_table["Total Card Number"] = {"Unique": len(set(all_history)), "Total": len(all_history)}
+    summary_table["Total Card Number"] = {
+        "Unique": len(set(all_history)), 
+        "Total": len(all_history),
+        "Stars": total_stars
+    }
     st.write(pd.DataFrame(summary_table).T)
 
     st.subheader("Set Slots")
@@ -510,6 +504,7 @@ if st.sidebar.button("Start Simulation"):
 if st.sidebar.button("500 Simulation!"):
     all_total_counts = []
     all_unique_counts = []
+    all_star_counts = []
     all_sets_completed_counts = []
     per_set_completion_counts = {name: 0 for name in set_names}
     per_set_missing_cards = {name: [] for name in set_names}
@@ -520,6 +515,9 @@ if st.sidebar.button("500 Simulation!"):
         all_history, unique_card_type_sets = simulate_once(
             pack_sequence, unique_first_n=unique_first_n
         )
+
+        run_stars = [len([c for c in all_history if c.startswith(ct)]) * star_values[ct] for ct in card_types]
+        all_star_counts.append(run_stars)
 
         all_total_counts.append([len([c for c in all_history if c.startswith(ct)]) for ct in card_types])
         all_unique_counts.append([len(unique_card_type_sets[ct]) for ct in card_types])
@@ -558,10 +556,11 @@ if st.sidebar.button("500 Simulation!"):
                 if missing_count > 0:
                     per_set_missing_cards[name].append(missing_count)
 
-
         progress_bar.progress((i + 1) / 500, text=f"Simulations running... ({(i + 1)}/500)")
 
     stat_cols = ["Avg", "Per 10", "Per 25", "Per 50", "Per 75", "Per 90"]
+    
+    st.subheader("Card Selection Results (Total) - 500 Simulations")
     df_total = pd.DataFrame(all_total_counts, columns=card_types)
     stats_total = pd.DataFrame(index=card_types + ["Total"], columns=stat_cols)
     for ct in card_types:
@@ -575,9 +574,9 @@ if st.sidebar.button("500 Simulation!"):
     for col in stat_cols:
         total_val = sum([float(str(stats_total.loc[ct, col]).replace(",", ".")) for ct in card_types])
         stats_total.loc["Total", col] = f"{total_val:.1f}".replace(".", ",") if col == "Avg" else int(total_val)
-    st.subheader("Card Selection Results (Total) - 500 Simulations")
     st.dataframe(stats_total)
 
+    st.subheader("Card Selection Results (Unique) - 500 Simulations")
     df_unique = pd.DataFrame(all_unique_counts, columns=card_types)
     stats_unique = pd.DataFrame(index=card_types + ["Total"], columns=stat_cols)
     for ct in card_types:
@@ -591,9 +590,25 @@ if st.sidebar.button("500 Simulation!"):
     for col in stat_cols:
         total_val = sum([float(str(stats_unique.loc[ct, col]).replace(",", ".")) for ct in card_types])
         stats_unique.loc["Total", col] = f"{total_val:.1f}".replace(".", ",") if col == "Avg" else int(total_val)
-    st.subheader("Card Selection Results (Unique) - 500 Simulations")
     st.dataframe(stats_unique)
 
+    st.subheader("Star Collection Results - 500 Simulations")
+    df_stars = pd.DataFrame(all_star_counts, columns=card_types)
+    stats_stars = pd.DataFrame(index=card_types + ["Total"], columns=stat_cols)
+    for ct in card_types:
+        vals = df_stars[ct]
+        stats_stars.loc[ct, "Avg"] = f"{np.mean(vals):.1f}".replace(".", ",")
+        stats_stars.loc[ct, "Per 10"] = int(np.percentile(vals, 10))
+        stats_stars.loc[ct, "Per 25"] = int(np.percentile(vals, 25))
+        stats_stars.loc[ct, "Per 50"] = int(np.percentile(vals, 50))
+        stats_stars.loc[ct, "Per 75"] = int(np.percentile(vals, 75))
+        stats_stars.loc[ct, "Per 90"] = int(np.percentile(vals, 90))
+    for col in stat_cols:
+        total_val = sum([float(str(stats_stars.loc[ct, col]).replace(",", ".")) for ct in card_types])
+        stats_stars.loc["Total", col] = f"{total_val:.1f}".replace(".", ",") if col == "Avg" else int(total_val)
+    st.dataframe(stats_stars)
+
+    st.subheader("Completed Set Stats (Total number of completed sets out of 9)")
     sets_df = pd.DataFrame({"Completed Set Count": all_sets_completed_counts})
     set_quantiles = sets_df["Completed Set Count"].quantile([0.1, 0.25, 0.5, 0.75, 0.9])
     set_stats = pd.DataFrame({
@@ -604,21 +619,16 @@ if st.sidebar.button("500 Simulation!"):
         "Per 75": [int(set_quantiles[0.75])],
         "Per 90": [int(set_quantiles[0.9])],
     }, index=["Count"])
-
-    st.subheader("Completed Set Stats (Total number of completed sets out of 9)")
     st.dataframe(set_stats)
     
+    st.subheader("Per-Set Completion Statistics")
     per_set_df = pd.DataFrame.from_dict(per_set_completion_counts, orient='index', columns=['Completion Count'])
     per_set_df['Completion Rate'] = (per_set_df['Completion Count'] / 500 * 100).map('{:.1f}%'.format)
-    
     avg_missing = {}
     for name, missing_list in per_set_missing_cards.items():
         if missing_list:
             avg_missing[name] = f"{np.mean(missing_list):.1f}"
         else:
             avg_missing[name] = "0.0"
-    
     per_set_df["Ort. Eksik Kart (Tamamlanamayanlarda)"] = pd.Series(avg_missing)
-
-    st.subheader("Per-Set Completion Statistics")
     st.dataframe(per_set_df)
