@@ -204,13 +204,10 @@ def draw_from_pack(
 
             chosen_type = np.random.choice(mutable_types, p=mutable_probs)
             
-            # Draw from the general pool, allowing duplicates.
-            # Don't draw a card that's already in this specific pack.
             pool = [c for c in unique_card_list if c.startswith(chosen_type) and c not in drawn_this_pack]
             if pool:
                 return random.choice(pool)
             
-            # If pool is empty for that type, remove it and re-roll.
             type_index = mutable_types.index(chosen_type)
             mutable_probs.pop(type_index)
             mutable_types.pop(type_index)
@@ -231,6 +228,26 @@ def draw_from_pack(
         if card:
             drawn_cards.append(card)
             drawn_this_pack.add(card)
+
+        # --- START OF FIX: Legendary Pack Guaranteed Unique Card ---
+        if pack_type == "Legendary Pack" and unique_guarantee:
+            is_any_card_new = any(card not in owned_uniques for card in drawn_cards)
+            
+            if not is_any_card_new and all_unique_left:
+                # All cards are duplicates, let's swap the 6th card.
+                if len(drawn_cards) == 6: # Ensure pack is full
+                    index_to_replace = 5 # Index of the 6th card
+                    new_card = random.choice(list(all_unique_left))
+                    
+                    # Update drawn_this_pack set carefully
+                    old_card = drawn_cards[index_to_replace]
+                    if old_card in drawn_this_pack:
+                        drawn_this_pack.remove(old_card)
+                    
+                    drawn_cards[index_to_replace] = new_card
+                    drawn_this_pack.add(new_card)
+        # --- END OF FIX ---
+        
         return drawn_cards
 
     # --- Regular Pack Logic (M, L, XL) ---
